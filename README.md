@@ -31,18 +31,22 @@
 
 ## 使用步骤
 
-### 添加依赖
+
+
+### 1.添加依赖
+
+####  最新版本： [![](https://jitpack.io/v/Knightwood/AppUpdate2.svg)](https://jitpack.io/#Knightwood/AppUpdate2)
 
 groovy:
 
 ```groovy
-    implementation 'com.github.knightwood:appUpdate:Tag'
+    implementation 'com.github.knightwood:appUpdate2:5.0.0'
 ```
 
 kotlin:
 
 ```kotlin
-    implementation("com.github.knightwood:appUpdate:Tag")
+    implementation("com.github.knightwood:appUpdate2:5.0.0")
 ```
 
 settings.gradle可能需要添加:
@@ -57,32 +61,35 @@ dependencyResolutionManagement {
 }
 ```
 
-<details>
-<summary>由于GooglePlay政策禁止应用内更新，所以可以通过多渠道的方式进处理</summary>
+### 2.创建`DownloadManager`，显示更新界面。
 
-- [GooglePlay政策](https://support.google.com/googleplay/android-developer/answer/9888379?hl=en&ref_topic=9877467)
--
+### 更多用法请查看[这里示例代码](https://github.com/Knightwood/AppUpdate/blob/main/app/src/main/java/com/azhon/app/MainActivity.kt)
 
-本库提供了一个没有任何实现的版本[点击查看详细内容](https://github.com/Knightwood/AppUpdate/blob/main/app/build.gradle)
+步骤：
 
-```groovy
-android {
-    //...
-    productFlavors {
-        other {}
-        googlePlay {}
-    }
+1. 配置一个DownloadManager
+2. 显示更新弹窗界面
+
+示例:
+
+```kotlin
+//配置一个DownloadManager
+val manager = DownloadManager.config(application) {
+    //这里指定使用内置的不同更新界面，如果需要自己定制界面，指定为UpdateDialogType.None      
+    updateDialogType = UpdateDialogType.Colorful
+    apkUrl = url
+    apkName = this@MainActivity.apkName
+    apkVersionCode = 2
+    apkVersionName = "v4.2.1"
+    apkSize = "7.7MB"
+    apkDescription = getString(R.string.dialog_msg)
+    forcedUpgrade = false
 }
 
-dependencies {
-    otherImplementation 'com.github.knightwood:appUpdate:Tag'
-    googlePlayImplementation 'com.github.knightwood:appupdate-no-op:Tag'
-}
+//显示更新弹窗界面
+val manager = downloadApp(manager!!)
+
 ```
-
-</details>
-
-### 第二步：创建`DownloadManager`，更多用法请查看[这里示例代码](https://github.com/Knightwood/AppUpdate/blob/main/app/src/main/java/com/azhon/app/MainActivity.kt)
 
 `DownloadManager`是个单例，每次使用`DownloadManager.DownloadConfig`配置`DownloadManager`
 时，都会取消上一个下载任务。
@@ -104,6 +111,10 @@ class UpdateDialogType {
     }
 }
 ```
+
+
+
+### 配置下载信息得到DownloadManager详细用法
 
 #### 使用DownloadManager.DownloadConfig配置DownloadManager
 
@@ -135,24 +146,6 @@ class UpdateDialogType {
 对于`showUi`方法：在使用内置界面时，你开始下载应用，并关闭了下载弹窗。
 当你调用showUi时，弹窗会继续显示下载进度，而不会重新开始下载。
 
-```kotlin
-//配置一个DownloadManager
-val manager = DownloadManager.config(application) {
-    //这里指定使用内置的不同更新界面，如果需要自己定制界面，指定为UpdateDialogType.None      
-    updateDialogType = UpdateDialogType.Colorful
-    apkUrl = url
-    apkName = this@MainActivity.apkName
-    apkVersionCode = 2
-    apkVersionName = "v4.2.1"
-    apkSize = "7.7MB"
-    apkDescription = getString(R.string.dialog_msg)
-    forcedUpgrade = false
-}
-
-//显示更新弹窗界面
-val manager = downloadApp(manager!!)
-```
-
 * 也可以直接配置并显示更新界面
 
 ```
@@ -180,13 +173,12 @@ downloadManager.download(activity)//如果不传activity参数，updateDialogTyp
 
 ```
 
-#### 自定义
+### 自定义界面
 
 ##### 自定义界面
 - 需要做的事情极其简单，你不需要关注下载的流程，监听之类的，只需要继承并重写布局，然后显示这个自定义的DialogFragment
 
 * 步骤：
-* 
 1. 写一个类继承`BaseUpdateDialogFragment`，重写布局
 2. 跟往常一样通过`DownloadManager.config(application)`生成一个[DownloadManager]
 3. 显示你的自定义的DialogFragment
