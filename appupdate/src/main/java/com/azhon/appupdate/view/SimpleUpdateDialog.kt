@@ -5,6 +5,8 @@ import android.app.AlertDialog
 import android.util.Log
 import android.view.View
 import android.widget.Button
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.graphics.drawable.DrawableCompat
 import com.azhon.appupdate.R
 import com.azhon.appupdate.config.Constant
 import com.azhon.appupdate.databinding.ItemUpdateDialogBinding
@@ -12,9 +14,15 @@ import com.azhon.appupdate.listener.OnButtonClickListener
 import com.azhon.appupdate.listener.OnDownloadListener
 import com.azhon.appupdate.manager.DownloadManager
 import com.azhon.appupdate.util.ApkUtil
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.drawable.DrawableUtils
 import java.io.File
 
+/**
+ * @author KnightWood
+ *
+ */
 class SimpleUpdateDialog {
     companion object {
         /**
@@ -29,7 +37,7 @@ class SimpleUpdateDialog {
             //弹窗
             val dialogBuilder = MaterialAlertDialogBuilder(
                 activity,
-                com.google.android.material.R.style.MaterialAlertDialog_Material3
+                R.style.MyAlertDialogTheme
             ).apply {
                 setTitle(
                     String.format(
@@ -39,6 +47,27 @@ class SimpleUpdateDialog {
                 )
                 setView(mView.root)
                 setPositiveButton(R.string.update, null)
+                val icon =
+                    if (manager.config.smallIcon > 0) {
+                        AppCompatResources.getDrawable(context, manager.config.smallIcon)
+                    } else {
+                        null
+                    } ?: let {
+                        val tmp = AppCompatResources.getDrawable(
+                            context,
+                            R.drawable.baseline_system_update_24
+                        )!!
+                        DrawableCompat.setTint(
+                            tmp,
+                            MaterialColors.getColor(
+                                context,
+                                com.google.android.material.R.attr.colorSecondary,
+                                ""
+                            )
+                        )
+                        tmp
+                    }
+                setIcon(icon)
                 setCancelable(!manager.config.forcedUpgrade)
                 if (!manager.config.forcedUpgrade) {
                     setNegativeButton(R.string.cancel) { dialog_interface, _ ->

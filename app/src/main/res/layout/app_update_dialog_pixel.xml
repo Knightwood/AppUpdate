@@ -28,7 +28,8 @@
             android:layout_marginTop="@dimen/margin_xsmall"
             android:text="@string/update_title"
             android:textAlignment="viewStart"
-            android:textAppearance="@style/TextAppearance.Material3.DisplayMedium" />
+            android:textAppearance="@style/TextAppearance.Material3.DisplayMedium"
+            android:gravity="start" />
 
         <ProgressBar
             android:id="@id/app_update_progress_bar"

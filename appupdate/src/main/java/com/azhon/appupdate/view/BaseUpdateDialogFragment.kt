@@ -9,7 +9,7 @@ import android.view.*
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
-import android.widget.Toast
+import androidx.annotation.CallSuper
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentTransaction
@@ -25,6 +25,10 @@ import com.azhon.appupdate.util.ApkUtil
 import com.azhon.appupdate.util.ToastUtils
 import java.io.File
 
+/**
+ * @author KnightWood
+ *
+ */
 class Action {
     companion object {
         //mode
@@ -37,6 +41,13 @@ class Action {
     }
 }
 
+/**
+ * @author KnightWood
+ * @property vm BaseUpdateDialogViewModel
+ * @property mView View
+ * @property views SparseArray<View>
+ * @property manager DownloadManager
+ */
 open class BaseUpdateDialogFragment : DialogFragment(), OnDownloadListener {
     lateinit var vm: BaseUpdateDialogViewModel
     lateinit var mView: View
@@ -55,39 +66,46 @@ open class BaseUpdateDialogFragment : DialogFragment(), OnDownloadListener {
         observeLivedata()
         vm.stateLivedata.value = Action.ready
         //如果正在下载，更新一下界面状态
-        if (manager.downloadState){
+        if (manager.downloadState) {
             start()
         }
     }
 
     private fun observeLivedata() {
         vm.run {
-            stateLivedata.observe(viewLifecycleOwner){
-                when(it){
-                    Action.ready->{
+            stateLivedata.observe(viewLifecycleOwner) {
+                when (it) {
+                    Action.ready -> {
                         //更新按钮的初始文本
                         vm.updateButtonLivedata.value = ButtonState(
                             enable = manager.canDownload(),
                             stringId = R.string.update
                         )
                     }
-                    Action.downloading->{
+
+                    Action.downloading -> {
                         vm.updateButtonLivedata.value = ButtonState(
                             enable = false,
                             stringId = R.string.app_update_start_downloading
                         )
                     }
-                    Action.readyInstall->{
+
+                    Action.readyInstall -> {
                         updateButtonLivedata.postValue(
                             ButtonState(enable = true, stringId = R.string.install)
                         )
                     }
-                    Action.error->{
+
+                    Action.error -> {
                         updateButtonLivedata.postValue(
-                            ButtonState(enable = true, stringId = R.string.app_update_download_error)
+                            ButtonState(
+                                enable = true,
+                                stringId = R.string.app_update_download_error
+                            )
                         )
                     }
-                    Action.canceled->{
+
+                    Action.canceled -> {
                         updateButtonLivedata.postValue(
                             ButtonState(enable = true, stringId = R.string.cancel)
                         )
@@ -100,23 +118,27 @@ open class BaseUpdateDialogFragment : DialogFragment(), OnDownloadListener {
                     setText(it.stringId)
                 }
             }
-            progressbarLivedata.observe(viewLifecycleOwner) {
-                progressBar().apply {
-                    progress = it.progress
-                    visibility = it.visibility
-                }
-
+            progress.observe(viewLifecycleOwner) {
+                setProgress(it)
             }
         }
     }
 
-    private fun initView() {
+    @CallSuper
+    open fun initView() {
         //title
         tvDescription().text = manager.config.apkDescription.replace("\\n", "\n")
         //size
-        tvSize().text = String.format(
-            getString(R.string.update_size_tv), manager.config.apkSize
-        )
+        tvSize().apply {
+            if (manager.config.apkSize.isNotEmpty()){
+                visibility=View.VISIBLE
+                text = String.format(
+                    getString(R.string.update_size_tv), manager.config.apkSize
+                )
+            }else{
+                visibility=View.INVISIBLE
+            }
+        }
         //update button
         btnUpdate().setOnClickListener {
             manager.config.onButtonClickListener?.onButtonClick(OnButtonClickListener.UPDATE)
@@ -132,7 +154,9 @@ open class BaseUpdateDialogFragment : DialogFragment(), OnDownloadListener {
             btnCancel().setOnClickListener {
                 vm.stateLivedata.postValue(Action.canceled)
                 manager.config.onButtonClickListener?.onButtonClick(OnButtonClickListener.CANCEL)
-                ToastUtils.showLong(requireContext(), getString(R.string.has_cancel_download))
+                if (manager.config.showBgdToast) {
+                    ToastUtils.showShot(requireContext(), getString(R.string.has_cancel_download))
+                }
                 manager.cancel()
                 dismiss()
             }
@@ -144,22 +168,26 @@ open class BaseUpdateDialogFragment : DialogFragment(), OnDownloadListener {
         initProgressBar()
     }
 
-    private fun initProgressBar() {
-        progressBar().run {
+    open fun initProgressBar() {
+        (progressBar() as ProgressBar).run {
             max = 100
             progress = 0
         }
     }
 
+    open fun setProgress(progressValue: Int) {
+        (progressBar() as ProgressBar).progress = progressValue
+    }
+
     //===============download listener start===================//
     override fun start() {
-        vm.progressbarLivedata.postValue(ProgressState(visibility = View.VISIBLE))
+        progressBar().visibility = View.VISIBLE
         vm.stateLivedata.postValue(Action.downloading)
     }
 
     override fun downloading(max: Int, progress: Int) {
         val curr = (progress / max.toDouble() * 100.0).toInt()
-        progressBar().progress = curr
+        vm.progress.value = curr
     }
 
     override fun done(apk: File) {
@@ -172,9 +200,6 @@ open class BaseUpdateDialogFragment : DialogFragment(), OnDownloadListener {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        //save progressbar state
-        vm.progressbarLivedata.value =
-            ProgressState(progressBar().progress, progressBar().visibility)
     }
 
     override fun cancel() {}
@@ -201,11 +226,11 @@ open class BaseUpdateDialogFragment : DialogFragment(), OnDownloadListener {
         }
 
     fun tvTitle(): TextView = findView(R.id.app_update_tv_title)
-    fun tvSize(): TextView = findView(R.id.app_update_tv_size)
-    fun tvDescription(): TextView = findView(R.id.app_update_tv_description)
-    fun btnUpdate(): Button = findView(R.id.app_update_btn_update)
-    fun btnCancel(): Button = findView(R.id.app_update_ib_close)
-    fun progressBar(): ProgressBar = findView(R.id.app_update_progress_bar)
+    open fun tvSize(): TextView = findView(R.id.app_update_tv_size)
+    open fun tvDescription(): TextView = findView(R.id.app_update_tv_description)
+    open fun btnUpdate(): Button = findView(R.id.app_update_btn_update)
+    open fun btnCancel(): View = findView(R.id.app_update_ib_close)
+    open fun progressBar(): View = findView(R.id.app_update_progress_bar)
 
     companion object {
         const val TAG = "BaseUpdateDialog"
@@ -213,17 +238,36 @@ open class BaseUpdateDialogFragment : DialogFragment(), OnDownloadListener {
 
 }
 
+/**
+ * @author KnightWood
+ * @property progress Int
+ * @property visibility Int
+ * @constructor
+ */
 data class ProgressState(
     val progress: Int = 0,
     val visibility: Int = View.VISIBLE
 ) : java.io.Serializable
 
+/**
+ * @author KnightWood
+ * @property enable Boolean
+ * @property visibility Int
+ * @property stringId Int
+ * @constructor
+ */
 data class ButtonState(
     val enable: Boolean = true,
     val visibility: Int = View.VISIBLE,
     val stringId: Int
 ) : java.io.Serializable
 
+/**
+ * @author KnightWood
+ * @property apkFile File?
+ * @property updateButtonLivedata MutableLiveData<ButtonState>
+ * @property stateLivedata MutableLiveData<Int>
+ */
 class BaseUpdateDialogViewModel : ViewModel() {
     var apkFile: File? = null
 
@@ -231,13 +275,12 @@ class BaseUpdateDialogViewModel : ViewModel() {
     val updateButtonLivedata: MutableLiveData<ButtonState> =
         MutableLiveData()
 
-    //progressbar
-    val progressbarLivedata: MutableLiveData<ProgressState> =
-        MutableLiveData()
-
     //download & display state
     val stateLivedata: MutableLiveData<Int> =
         MutableLiveData()
+
+    //下载进度
+    val progress: MutableLiveData<Int> = MutableLiveData(0)
 
     fun installApk(context: Context) {
         apkFile?.let { it1 ->
@@ -254,110 +297,4 @@ class BaseUpdateDialogViewModel : ViewModel() {
         apkFile = apk
         stateLivedata.postValue(Action.readyInstall)
     }
-}
-
-class PixelUpdateDialogFragment : BaseUpdateDialogFragment() {
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        setStyle(STYLE_NORMAL, R.style.M3AppTheme)
-        mView = inflater.inflate(R.layout.app_update_dialog_pixel, container, false)
-        //全屏
-        dialog?.window?.let { window ->
-            //这步是必须的
-            window.setBackgroundDrawableResource(R.color.transparent)
-            //必要，设置 padding，这一步也是必须的，内容不能填充全部宽度和高度
-            window.decorView.setPadding(0, 0, 0, 0)
-            // 关键是这句，其实跟xml里的配置长得几乎一样
-            val wlp: WindowManager.LayoutParams = window.attributes
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                wlp.layoutInDisplayCutoutMode =
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-            }
-            wlp.gravity = Gravity.CENTER
-            wlp.width = WindowManager.LayoutParams.MATCH_PARENT
-            wlp.height = WindowManager.LayoutParams.MATCH_PARENT
-            window.attributes = wlp
-        }
-        return mView
-    }
-
-    override fun start() {
-        super.start()
-        tvTitle().setText(R.string.update_title_downloading)
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        outState.putString("title", tvTitle().text.toString())
-    }
-
-    override fun onViewStateRestored(savedInstanceState: Bundle?) {
-        super.onViewStateRestored(savedInstanceState)
-        savedInstanceState?.let {
-            tvTitle().text = it.getString("title", getString(R.string.update_title))
-        }
-    }
-
-    companion object {
-        const val TAG = "PixelUpdateDialogFragment"
-
-        fun open(host: FragmentActivity) {
-            host.run {
-                val dialog = PixelUpdateDialogFragment()
-                val ft = supportFragmentManager.beginTransaction()
-                ft.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
-                dialog.show(ft, TAG)
-            }
-        }
-    }
-
-}
-
-class Win8UpdateDialogFragment : BaseUpdateDialogFragment() {
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        setStyle(STYLE_NORMAL, R.style.M3AppTheme)
-        mView = inflater.inflate(R.layout.app_update_dialog_win8, container, false)
-        //全屏
-        dialog?.window?.let { window ->
-            //这步是必须的
-            window.setBackgroundDrawableResource(R.color.transparent)
-            //必要，设置 padding，这一步也是必须的，内容不能填充全部宽度和高度
-            window.decorView.setPadding(0, 0, 0, 0)
-            // 关键是这句，其实跟xml里的配置长得几乎一样
-            val wlp: WindowManager.LayoutParams = window.attributes
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                wlp.layoutInDisplayCutoutMode =
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-            }
-            wlp.gravity = Gravity.CENTER
-            wlp.width = WindowManager.LayoutParams.MATCH_PARENT
-            wlp.height = WindowManager.LayoutParams.WRAP_CONTENT
-            window.attributes = wlp
-        }
-        return mView
-    }
-
-
-    companion object {
-        const val TAG = "Win8UpdateDialogFragment"
-
-        fun open(host: FragmentActivity) {
-            host.run {
-                val dialog = Win8UpdateDialogFragment()
-                val ft = supportFragmentManager.beginTransaction()
-                ft.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
-                dialog.show(ft, TAG)
-            }
-        }
-    }
-
 }

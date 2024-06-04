@@ -39,6 +39,7 @@ import java.io.File
  * @author   azhon
  */
 
+@Deprecated("未来将会移除")
 class UpdateDialogActivity : AppCompatActivity(), View.OnClickListener {
 
     private val install = 0x45

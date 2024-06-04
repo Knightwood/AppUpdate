@@ -10,6 +10,7 @@ import androidx.annotation.LayoutRes
 import androidx.fragment.app.FragmentActivity
 import com.azhon.appupdate.R
 import com.azhon.appupdate.base.BaseHttpDownloadManager
+import com.azhon.appupdate.base.bean.DownloadStatus
 import com.azhon.appupdate.config.Constant
 import com.azhon.appupdate.listener.LifecycleCallbacksAdapter
 import com.azhon.appupdate.listener.OnButtonClickListener
@@ -19,25 +20,120 @@ import com.azhon.appupdate.util.ApkUtil
 import com.azhon.appupdate.util.LogUtil
 import com.azhon.appupdate.util.NotNullSingleVar
 import com.azhon.appupdate.util.NullableSingleVar
-import com.azhon.appupdate.view.PixelUpdateDialogFragment
-import com.azhon.appupdate.view.SimpleUpdateDialog
 import com.azhon.appupdate.view.UpdateDialogActivity
-import com.azhon.appupdate.view.Win8UpdateDialogFragment
-import java.io.Serializable
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 
 /**
- * ProjectName: AppUpdate
- * PackageName: com.azhon.appupdate.manager
- * FileName:    DownloadManager
- * CreateDate:  2022/4/7 on 10:36
- * Desc:
- *
- * @author azhon
+ * @author KnightWood
  */
 class DownloadManager private constructor(
     var config: DownloadConfig,
     internal var application: Application
-) : Serializable {
+){
+
+    var downloadState: Boolean = false
+
+    var downloadStateFlow: MutableStateFlow<DownloadStatus> = MutableStateFlow(DownloadStatus.IDLE)
+
+    init {
+        downloadStateFlow.map {
+            downloadState = when (it) {
+                is DownloadStatus.Cancel,
+                is DownloadStatus.Done,
+                is DownloadStatus.Error,
+                is DownloadStatus.IDLE -> {
+                    false
+                }
+
+                is DownloadStatus.Downloading,
+                is DownloadStatus.Start -> {
+                    true
+                }
+            }
+        }
+    }
+
+    /**
+     * test whether can download
+     */
+    fun canDownload(): Boolean {
+        val params = checkParams()
+        val versionCodeCheck: Boolean =
+            if (config.apkVersionCode == Int.MAX_VALUE) {
+                true
+            } else {
+                config.apkVersionCode > ApkUtil.getVersionCode(application)
+            }
+        return (params && versionCodeCheck)
+
+    }
+
+    /**
+     * download file without dialog
+     */
+    fun checkThenDownload() {
+        if (canDownload()) {
+            application.startService(Intent(application, DownloadService::class.java))
+        } else {
+            Log.e(TAG, "download: cannot download")
+        }
+    }
+
+    /**
+     * with out check whether can download, so you need to check it yourself
+     */
+    fun directDownload() {
+        application.startService(Intent(application, DownloadService::class.java))
+    }
+
+    private fun checkParams(): Boolean {
+        if (config.apkUrl.isEmpty()) {
+            LogUtil.e(TAG, "apkUrl can not be empty!")
+            return false
+        }
+        if (config.apkName.isEmpty()) {
+            LogUtil.e(TAG, "apkName can not be empty!")
+            return false
+        }else{
+            if (!config.apkName.endsWith(Constant.APK_SUFFIX)){
+                config.apkName+=".apk"
+            }
+        }
+        if (config.apkDescription.isEmpty()) {
+            LogUtil.e(TAG, "apkDescription can not be empty!")
+            return false
+        }
+        Constant.AUTHORITIES = "${application.packageName}.fileProvider"
+        return true
+    }
+
+    /**
+     * when download not start,HttpManager maybe is null
+     * in this case, will exec "then" block
+     */
+    fun cancel(then: () -> Unit = {}) {
+        config.httpManager?.cancel() ?: then()
+    }
+
+    /**
+     * release objects
+     */
+    internal fun release() {
+        config.httpManager?.release()
+        clearListener()
+        instance = null
+    }
+
+    internal fun reConfig(config: DownloadConfig) {
+        this.config.httpManager?.release()
+        this.config = config
+    }
+
+    fun clearListener() {
+        config.onButtonClickListener = null
+        config.onDownloadListeners.clear()
+    }
 
     companion object {
         private const val TAG = "DownloadManager"
@@ -74,94 +170,6 @@ class DownloadManager private constructor(
         }
     }
 
-    private var apkVersionCode: Int = config.apkVersionCode
-
-    var downloadState: Boolean = false
-
-    /**
-     * test whether can download
-     */
-    fun canDownload(): Boolean {
-        val params = checkParams()
-        val versionCodeCheck: Boolean =
-            if (apkVersionCode == Int.MIN_VALUE) {
-                true
-            } else {
-                apkVersionCode > ApkUtil.getVersionCode(application)
-            }
-        return (params && versionCodeCheck)
-
-    }
-
-    /**
-     * download file without dialog
-     */
-    fun checkThenDownload() {
-        if (canDownload()) {
-            application.startService(Intent(application, DownloadService::class.java))
-        } else {
-            Log.e(TAG, "download: cannot download")
-        }
-    }
-
-    /**
-     * with out check whether can download, so you need to check it yourself
-     */
-    fun directDownload() {
-        application.startService(Intent(application, DownloadService::class.java))
-    }
-
-    private fun checkParams(): Boolean {
-        if (config.apkUrl.isEmpty()) {
-            LogUtil.e(TAG, "apkUrl can not be empty!")
-            return false
-        }
-        if (config.apkName.isEmpty()) {
-            LogUtil.e(TAG, "apkName can not be empty!")
-            return false
-        }
-        if (!config.apkName.endsWith(Constant.APK_SUFFIX)) {
-            LogUtil.e(TAG, "apkName must endsWith .apk!")
-            return false
-        }
-        if (config.smallIcon == -1) {
-            LogUtil.e(TAG, "smallIcon can not be empty!");
-            return false
-        }
-        if (config.apkDescription.isEmpty()) {
-            LogUtil.e(TAG, "apkDescription can not be empty!")
-            return false
-        }
-        Constant.AUTHORITIES = "${application.packageName}.fileProvider"
-        return true
-    }
-
-    /**
-     * when download not start,HttpManager maybe is null
-     * in this case, will exec "then" block
-     */
-    fun cancel(then: () -> Unit = {}) {
-        config.httpManager?.cancel() ?: then()
-    }
-
-    /**
-     * release objects
-     */
-    internal fun release() {
-        config.httpManager?.release()
-        clearListener()
-        instance = null
-    }
-
-    internal fun reConfig(config: DownloadConfig) {
-        this.config.httpManager?.release()
-        this.config = config
-    }
-
-    fun clearListener() {
-        config.onButtonClickListener = null
-        config.onDownloadListeners.clear()
-    }
 
     class DownloadConfig constructor(application: Application) {
         /**
@@ -263,7 +271,7 @@ class DownloadManager private constructor(
         /**
          * View type
          */
-        var viewType: Int = ViewType.Colorful
+        var updateDialogType: Int = UpdateDialogType.SimpleDialog
 
 
         fun enableLog(enable: Boolean): DownloadConfig {
@@ -302,17 +310,20 @@ class DownloadManager private constructor(
          */
         internal fun download() = getOneHttpManager().download(apkUrl, apkName)
 
+        @Deprecated("未来将会移除")
         internal var viewConfig: DialogConfig = DialogConfig()
 
         /**
          * 配置视图
          */
+        @Deprecated("未来将会移除")
         fun configDialog(block: DialogConfig.() -> Unit): DownloadConfig {
             viewConfig.block()
             return this
         }
     }
 
+    @Deprecated("未来将会移除")
     class DialogConfig() {
         /**
          * custom layout id
@@ -477,8 +488,8 @@ class DownloadManager private constructor(
             return this
         }
 
-        fun viewType(viewType: Int = ViewType.Colorful) {
-            config.viewType = viewType
+        fun viewType(updateDialogType: Int = UpdateDialogType.Colorful) {
+            config.updateDialogType = updateDialogType
         }
 
         fun enableLog(enable: Boolean): Builder {
@@ -494,43 +505,3 @@ class DownloadManager private constructor(
 
 }
 
-fun DownloadManager.download(activity: FragmentActivity) {
-    if (canDownload()) {
-        showUi(this, activity)
-    } else {
-        if (config.viewConfig.showNewerToast) {
-            Toast.makeText(
-                application, R.string.app_update_latest_version, Toast.LENGTH_SHORT
-            ).show()
-        }
-    }
-}
-
-/**
- * 这个方法将会忽略配置中的viewType，使用默认UpdateDialogActivity进行下载
- * @receiver DownloadManager
- */
-fun DownloadManager.download() {
-    application.startActivity(
-        Intent(application, UpdateDialogActivity::class.java)
-            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    )
-    // Fix memory leak
-    application.registerActivityLifecycleCallbacks(object :
-        LifecycleCallbacksAdapter() {
-        override fun onActivityDestroyed(activity: Activity) {
-            super.onActivityDestroyed(activity)
-            if (this.javaClass.name == activity.javaClass.name) {
-                clearListener()
-            }
-        }
-    })
-
-    if (!canDownload()) {
-        if (config.viewConfig.showNewerToast) {
-            Toast.makeText(
-                application, R.string.app_update_latest_version, Toast.LENGTH_SHORT
-            ).show()
-        }
-    }
-}

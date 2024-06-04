@@ -14,7 +14,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="@dimen/margin_xsmall"
         android:layout_marginEnd="@dimen/margin_xsmall"
-        android:textAppearance="@style/TextAppearance.Material3.BodyLarge" />
+        android:textAppearance="@style/TextAppearance.Material3.LabelMedium" />
 
     <TextView
         android:layout_width="wrap_content"
@@ -23,11 +23,11 @@
         android:layout_marginTop="8dp"
         android:layout_marginEnd="@dimen/margin_xsmall"
         android:text="@string/update_description_title"
-        android:textAppearance="@style/TextAppearance.Material3.BodyMedium" />
+        android:textAppearance="@style/TextAppearance.Material3.BodyLarge" />
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="160dp"
         android:layout_marginStart="@dimen/margin_xsmall"
         android:layout_marginTop="4dp"
         android:layout_marginEnd="@dimen/margin_xsmall"

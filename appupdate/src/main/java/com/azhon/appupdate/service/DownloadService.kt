@@ -16,6 +16,7 @@ import com.azhon.appupdate.util.ApkUtil
 import com.azhon.appupdate.util.FileUtil
 import com.azhon.appupdate.util.LogUtil
 import com.azhon.appupdate.util.NotificationUtil
+import com.azhon.appupdate.view.Action
 import kotlinx.coroutines.*
 import java.io.File
 
@@ -30,7 +31,7 @@ import java.io.File
  */
 
 class DownloadService : Service(), OnDownloadListener {
-    val scope: CoroutineScope =
+    private val scope: CoroutineScope =
         CoroutineScope(Dispatchers.IO) + SupervisorJob() + CoroutineName(Constant.COROUTINE_NAME)
 
     companion object {
@@ -106,10 +107,10 @@ class DownloadService : Service(), OnDownloadListener {
                             is DownloadStatus.Error -> error(it.e)
                             else -> {}
                         }
+                        manager.downloadStateFlow.emit(it)
                     }
             }
         }
-        manager.downloadState = true
     }
 
     override fun start() {
@@ -146,7 +147,6 @@ class DownloadService : Service(), OnDownloadListener {
 
     override fun done(apk: File) {
         LogUtil.d(TAG, "apk downloaded to ${apk.path}")
-        manager.downloadState = false
         //If it is android Q (api=29) and above, (showNotification=false) will also send a
         // download completion notification
         if (manager.config.showNotification || Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -168,7 +168,6 @@ class DownloadService : Service(), OnDownloadListener {
 
     override fun cancel() {
         LogUtil.i(TAG, "download cancel")
-        manager.downloadState = false
         if (manager.config.showNotification) {
             NotificationUtil.cancelNotification(this@DownloadService)
         }
@@ -177,7 +176,6 @@ class DownloadService : Service(), OnDownloadListener {
 
     override fun error(e: Throwable) {
         LogUtil.e(TAG, "download error: $e")
-        manager.downloadState = false
         if (manager.config.showNotification) {
             NotificationUtil.showErrorNotification(
                 this@DownloadService, manager.config.smallIcon,
